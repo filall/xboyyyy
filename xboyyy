@@ -4,41 +4,42 @@ import requests
 from bs4 import BeautifulSoup
 from translate import Translator
 import re
+import json
 
-# Replace 'YOUR_TOKEN' with your actual Bot token received from BotFather
+# Replace 'YOUR_TOKEN' with your actual Telegram bot token obtained from BotFather
 TOKEN = '7076261734:AAH4-Xs0v2IaF87lD73W3PyuMXTaCgX_VjU'
 
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Send me an AliExpress product URL and I will get the title in Arabic (for the part after the "|") and the main image for you.')
+    update.message.reply_text('أرسل لي رابط منتج من AliExpress وسأحصل لك على عنوان المنتج باللغة العربية (للجزء بعد العلامة "|") والصورة الرئيسية.')
 
 def get_product_details(url: str) -> dict:
     try:
         response = requests.get(url)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            # Extract title
+            # Extract the title
             title_tag = soup.find('meta', property='og:title')
-            title = title_tag.get('content') if title_tag else "Product title not found."
+            title = title_tag.get('content') if title_tag else "لم يتم العثور على عنوان المنتج."
 
-            # Replace " MAD" with " dirham" if followed by numbers
-            title = re.sub(r'\bMAD(?=\d)', '  DدرهمH  ', title)
+            # Replace "MAD" with "درهم" if followed by numbers
+            title = re.sub(r'\bMAD(?=\d)', 'درهم', title)
 
-            # Split title at "|"
+            # Split the title at "|"
             title_parts = title.split("|")
             title_before_pipe = title_parts[0]
             title_after_pipe = "|".join(title_parts[1:]) if len(title_parts) > 1 else ""
 
-            # Translate the part after "|" to Arabic
+            # Translate the part after "|" into Arabic
             translator = Translator(to_lang="ar")
             title_after_pipe_arabic = translator.translate(title_after_pipe.strip()) if title_after_pipe else ""
 
-            # Update title tag content
+            # Update the content of the title tag
             if "|" in title:
                 title_tag['content'] = title_before_pipe
 
-            # Extract image
+            # Extract the image
             image_tag = soup.find('meta', property='og:image')
-            image_url = image_tag.get('content') if image_tag else "Image not found."
+            image_url = image_tag.get('content') if image_tag else "لم يتم العثور على صورة."
             return {
                 'title_before_pipe': title_before_pipe,
                 'title_after_pipe_arabic': title_after_pipe_arabic,
@@ -48,17 +49,21 @@ def get_product_details(url: str) -> dict:
         else:
             return {
                 "title_before_pipe": "",
-                "title_after_pipe_arabic": "Failed to retrieve the page. Please check the URL.",
+                "title_after_pipe_arabic": "فشل في استرداد الصفحة. يرجى التحقق من الرابط.",
                 "image_url": "",
                 'url': url
             }
     except Exception as e:
         return {
             'title_before_pipe': "",
-            'title_after_pipe_arabic': f'An error occurred: {e}',
+            'title_after_pipe_arabic': f'حدث خطأ: {e}',
             'image_url': '',
             'url': url
         }
+
+def save_to_json(details: dict, filename: str):
+    with open(filename, 'w') as json_file:
+        json.dump(details, json_file, ensure_ascii=False, indent=4)
 
 def handle_message(update: Update, context: CallbackContext) -> None:
     text = update.message.text
@@ -75,8 +80,11 @@ def handle_message(update: Update, context: CallbackContext) -> None:
             update.message.reply_photo(photo=details["image_url"], caption=caption)
         else:
             update.message.reply_text(caption)
+
+        # Save details to JSON file
+        save_to_json(details, 'product_details.json')
     else:
-        update.message.reply_text('Please send a valid AliExpress product URL.')
+        update.message.reply_text('يرجى إرسال رابط صالح لمنتج من AliExpress.')
 
 def main() -> None:
     updater = Updater(TOKEN, use_context=True)
