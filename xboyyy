@@ -4,66 +4,66 @@ import requests
 from bs4 import BeautifulSoup
 from translate import Translator
 import re
-import json
 
-# Replace 'YOUR_TOKEN' with your actual Telegram bot token obtained from BotFather
+# Replace 'YOUR_TOKEN' with your actual Bot token received from BotFather
 TOKEN = '7076261734:AAH4-Xs0v2IaF87lD73W3PyuMXTaCgX_VjU'
 
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('أرسل لي رابط منتج من AliExpress وسأحصل لك على عنوان المنتج باللغة العربية (للجزء بعد العلامة "|") والصورة الرئيسية.')
+    update.message.reply_text('أرسل لي رابط منتج من على AliExpress وسأحصل لك على العنوان بالعربية (للجزء بعد العلامة "|") والصورة الرئيسية.')
 
 def get_product_details(url: str) -> dict:
     try:
         response = requests.get(url)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            # Extract the title
+            # Extract title
             title_tag = soup.find('meta', property='og:title')
             title = title_tag.get('content') if title_tag else "لم يتم العثور على عنوان المنتج."
 
-            # Replace "MAD" with "درهم" if followed by numbers
-            title = re.sub(r'\bMAD(?=\d)', 'درهم', title)
+            # Replace "MAD" with "ثمن المنتج بالدرهم"
+            title = re.sub(r'\bMAD', 'ثمن المنتج بالدرهم', title)
 
-            # Split the title at "|"
+            # Split title at "|"
             title_parts = title.split("|")
-            title_before_pipe = title_parts[0]
-            title_after_pipe = "|".join(title_parts[1:]) if len(title_parts) > 1 else ""
+            title_before_pipe = title_parts[0].strip()
 
-            # Translate the part after "|" into Arabic
+            # Extract the price, discount, and remaining title
+            price_discount_title = title_parts[1].strip()
+            price_discount_title_parts = re.split(r'(\d+%OFF)', price_discount_title)
+            price = price_discount_title_parts[0].strip()
+            discount = price_discount_title_parts[1].strip()
+            remaining_title = title_parts[2].strip()
+
+            # Reconstruct the title with the desired format
+            new_title = f"{price}\n{discount} | {remaining_title}"
+
+            # Translate the part after "|" to Arabic
             translator = Translator(to_lang="ar")
-            title_after_pipe_arabic = translator.translate(title_after_pipe.strip()) if title_after_pipe else ""
+            new_title_arabic = translator.translate(new_title.strip()) if new_title else ""
 
-            # Update the content of the title tag
-            if "|" in title:
-                title_tag['content'] = title_before_pipe
-
-            # Extract the image
+            # Extract image
             image_tag = soup.find('meta', property='og:image')
-            image_url = image_tag.get('content') if image_tag else "لم يتم العثور على صورة."
+            image_url = image_tag.get('content') if image_tag else "لم يتم العثور على الصورة."
             return {
                 'title_before_pipe': title_before_pipe,
-                'title_after_pipe_arabic': title_after_pipe_arabic,
+                'new_title_arabic': new_title_arabic,
                 'image_url': image_url,
                 'url': url
             }
         else:
             return {
                 "title_before_pipe": "",
-                "title_after_pipe_arabic": "فشل في استرداد الصفحة. يرجى التحقق من الرابط.",
+                "new_title_arabic": "فشل في استرداد الصفحة. الرجاء التحقق من الرابط.",
                 "image_url": "",
                 'url': url
             }
     except Exception as e:
         return {
             'title_before_pipe': "",
-            'title_after_pipe_arabic': f'حدث خطأ: {e}',
+            'new_title_arabic': f'حدث خطأ: {e}',
             'image_url': '',
             'url': url
         }
-
-def save_to_json(details: dict, filename: str):
-    with open(filename, 'w') as json_file:
-        json.dump(details, json_file, ensure_ascii=False, indent=4)
 
 def handle_message(update: Update, context: CallbackContext) -> None:
     text = update.message.text
@@ -71,8 +71,8 @@ def handle_message(update: Update, context: CallbackContext) -> None:
         details = get_product_details(text)
         caption = f'{details["title_before_pipe"]}\n'
 
-        if details["title_after_pipe_arabic"]:
-            caption += details["title_after_pipe_arabic"]
+        if details["new_title_arabic"]:
+            caption += details["new_title_arabic"]
 
         caption += f'\nرابط الشراء: {details["url"]}'
 
@@ -80,11 +80,8 @@ def handle_message(update: Update, context: CallbackContext) -> None:
             update.message.reply_photo(photo=details["image_url"], caption=caption)
         else:
             update.message.reply_text(caption)
-
-        # Save details to JSON file
-        save_to_json(details, 'product_details.json')
     else:
-        update.message.reply_text('يرجى إرسال رابط صالح لمنتج من AliExpress.')
+        update.message.reply_text('الرجاء إرسال رابط صحيح لمنتج على AliExpress.')
 
 def main() -> None:
     updater = Updater(TOKEN, use_context=True)
