@@ -6,7 +6,7 @@ from translate import Translator
 import re
 
 # Replace 'YOUR_TOKEN' with your actual Bot token received from BotFather
-TOKEN = '7076261734:AAH4-Xs0v2IaF87lD73W3PyuMXTaCgX_VjU'
+TOKEN = '6535825363:AAEZLbovwajKQ_iS1ZFcEkK46KCzYJ_oO_8'
 
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Send me an AliExpress product URL and I will get the title in Arabic (for the part after the "|") and the main image for you.')
